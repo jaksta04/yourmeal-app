@@ -5,85 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Moje Menu</title>
+    <meta name="apple-mobile-web-app-title" content="Co Jemy?">
+    <title>Co Jemy?</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; font-family: sans-serif; }
         .grid-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; }
-        .dish-card { background: #1e293b; border-radius: 16px; overflow: hidden; position: relative; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+        .dish-card { background: #1e293b; border-radius: 20px; overflow: hidden; position: relative; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); }
         .dish-image { width: 100%; aspect-ratio: 1/1; object-fit: cover; }
-        .dish-info { padding: 8px; background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%); position: absolute; bottom: 0; width: 100%; }
-        #loading { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; }
+        .dish-info { padding: 10px; background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, transparent 100%); position: absolute; bottom: 0; width: 100%; }
+        #loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
-    <div id="loading">Przetwarzam pyszności...</div>
+    <div id="loading">
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-orange-500 mb-4"></div>
+        <p>Zapisuję danie...</p>
+    </div>
 
-    <header class="p-6 flex justify-between items-center bg-slate-900 sticky top-0 z-50 border-b border-slate-800">
+    <header class="p-6 pb-4 flex justify-between items-end bg-slate-900 sticky top-0 z-50 border-b border-slate-800">
         <div>
-            <h1 class="text-2xl font-black text-orange-500 tracking-tight">MOJE MENU</h1>
-            <p class="text-xs text-slate-400">Co dziś jemy?</p>
+            <h1 class="text-3xl font-black text-orange-500 tracking-tighter">MOJE MENU</h1>
+            <p id="stats" class="text-xs text-slate-400 font-bold uppercase tracking-widest">Ładowanie bazy...</p>
         </div>
-        <button onclick="document.getElementById('fileInput').click()" class="bg-orange-600 w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
-            <span class="text-3xl font-light">+</span>
+        <button onclick="document.getElementById('fileInput').click()" class="bg-orange-600 w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+            <span class="text-4xl font-light">+</span>
         </button>
     </header>
 
     <input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden" onchange="processAndAdd(event)">
 
-    <div id="grid" class="grid-container">
-        </div>
+    <div id="grid" class="grid-container"></div>
 
-    <div id="modal" class="fixed inset-0 bg-black/90 z-[100] hidden p-6 flex flex-col justify-center items-center" onclick="this.classList.add('hidden')">
-        <img id="modalImg" class="w-full rounded-2xl mb-4">
-        <h2 id="modalTitle" class="text-2xl font-bold text-orange-500"></h2>
-        <p id="modalDesc" class="mt-2 text-center text-slate-300 italic"></p>
-        <button onclick="deleteCurrent()" class="mt-8 text-red-500 text-sm border border-red-500/30 px-4 py-2 rounded-full">Usuń to danie</button>
+    <div id="modal" class="fixed inset-0 bg-black/95 z-[100] hidden p-6 flex flex-col justify-center items-center" onclick="this.classList.add('hidden')">
+        <img id="modalImg" class="w-full rounded-3xl shadow-2xl mb-6">
+        <h2 id="modalTitle" class="text-3xl font-bold text-white mb-2"></h2>
+        <p id="modalDesc" class="text-slate-400 italic text-center text-lg"></p>
+        <button onclick="deleteCurrent(event)" class="mt-12 text-red-500 font-bold py-3 px-8 rounded-full border border-red-500/20">USUŃ TO DANIE</button>
     </div>
 
     <script>
         let db;
         let currentId = null;
-        const request = indexedDB.open("FoodAppDB", 1);
+
+        // Inicjalizacja Bazy Danych
+        const request = indexedDB.open("FoodAppSafeDB", 2); // Nowa wersja bazy
 
         request.onupgradeneeded = e => {
             db = e.target.result;
-            db.createObjectStore("dishes", { keyPath: "id", autoIncrement: true });
+            if (!db.objectStoreNames.contains("dishes")) {
+                db.createObjectStore("dishes", { keyPath: "id", autoIncrement: true });
+            }
         };
 
-        request.onsuccess = e => { db = e.target.result; render(); };
+        request.onsuccess = e => {
+            db = e.target.result;
+            console.log("Baza gotowa");
+            render();
+        };
+
+        request.onerror = e => alert("Błąd bazy: " + e.target.errorCode);
 
         async function processAndAdd(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            const name = prompt("Jak nazywa się to danie?");
+            const name = prompt("Co to za danie?");
             if (!name) return;
-            const desc = prompt("Dodatkowy opis (opcjonalnie):") || "";
+            const desc = prompt("Twój opis (opcjonalnie):") || "";
 
-            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').style.display = 'flex';
 
             const reader = new FileReader();
-            reader.onload = async (e) => {
+            reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    // Kompresja do Max 800px dla oszczędności miejsca
                     const canvas = document.createElement('canvas');
+                    const max = 1000; // Rozsądny rozmiar
                     let w = img.width, h = img.height;
-                    const max = 800;
                     if (w > h) { if(w > max){ h *= max/w; w = max; } }
                     else { if(h > max){ w *= max/h; h = max; } }
                     canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
                     
-                    const compressed = canvas.toDataURL('image/jpeg', 0.7);
+                    // Kluczowe: Kompresja do JPEG 0.6 (wygląda super, waży mało)
+                    const compressed = canvas.toDataURL('image/jpeg', 0.6);
                     
                     const tx = db.transaction("dishes", "readwrite");
-                    tx.objectStore("dishes").add({ name, desc, image: compressed });
+                    const store = tx.objectStore("dishes");
+                    
+                    const addRequest = store.add({ name, desc, image: compressed });
+                    
+                    addRequest.onsuccess = () => {
+                        console.log("Dodano pomyślnie");
+                        render();
+                    };
+                    
                     tx.oncomplete = () => {
                         document.getElementById('loading').style.display = 'none';
-                        render();
+                        event.target.value = ''; // Reset inputa
                     };
                 };
                 img.src = e.target.result;
@@ -93,18 +115,26 @@
 
         function render() {
             const grid = document.getElementById('grid');
+            const stats = document.getElementById('stats');
             grid.innerHTML = '';
-            db.transaction("dishes", "readonly").objectStore("dishes").getAll().onsuccess = e => {
-                e.target.result.forEach(dish => {
+            
+            const store = db.transaction("dishes", "readonly").objectStore("dishes");
+            const getAll = store.getAll();
+            
+            getAll.onsuccess = e => {
+                const items = e.target.result;
+                stats.innerText = `Masz ${items.length} dań w menu`;
+                
+                items.reverse().forEach(dish => {
                     const card = document.createElement('div');
-                    card.className = 'dish-card active:scale-95 transition-transform';
-                    card.onclick = () => showDetails(dish);
+                    card.className = 'dish-card active:scale-95 transition-transform animate-in fade-in duration-500';
                     card.innerHTML = `
-                        <img src="${dish.image}" class="dish-image">
+                        <img src="${dish.image}" class="dish-image" loading="lazy">
                         <div class="dish-info">
-                            <div class="text-sm font-bold truncate">${dish.name}</div>
+                            <div class="text-sm font-bold truncate pr-2">${dish.name}</div>
                         </div>
                     `;
+                    card.onclick = () => showDetails(dish);
                     grid.appendChild(card);
                 });
             };
@@ -118,9 +148,15 @@
             document.getElementById('modal').classList.remove('hidden');
         }
 
-        function deleteCurrent() {
-            if (confirm("Na pewno usunąć?")) {
-                db.transaction("dishes", "readwrite").objectStore("dishes").delete(currentId).oncomplete = render;
+        function deleteCurrent(e) {
+            e.stopPropagation();
+            if (confirm("Usunąć to danie na stałe?")) {
+                const tx = db.transaction("dishes", "readwrite");
+                tx.objectStore("dishes").delete(currentId);
+                tx.oncomplete = () => {
+                    document.getElementById('modal').classList.add('hidden');
+                    render();
+                };
             }
         }
     </script>
